@@ -39,9 +39,10 @@ match is a new detection and a new decision, as in SIEM.
 ## Processes
 
 runtime-agent's Falco rule `OpenAsy process started` sees every program start. The agent counts them by program,
-parent and user and sends the counts, not each start. A host **learns** for its first days (7 by default): everything
-it runs then is **known**. Afterwards a program never seen on that host or in that image is **new**, and a known
-program with a parent or user never seen with it is **drift**. A new program in a container raises Runtime's one
+parent and user and sends the counts, not each start. A host **learns** for its first days (7 by default), and so
+does each container image, by repository, from the first time the host runs it: everything run then is **known**, and
+a new version of an image is the same workload. Afterwards a program never seen on that host or in that image is
+**new**, and a known program with a parent or user never seen with it is **drift**. A new program in a container raises Runtime's one
 rule of its own, **New process in container**: containers run the same image every time, so a program the image
 never ran is worth a look. An editor accepts a program as known.
 
@@ -89,7 +90,7 @@ enrolment token and start runtime-agent with it next to Falco on each host; Setu
 | --- | --- | --- |
 | `PORT` | `8080` | HTTP port |
 | `RUNTIME_PUBLIC_URL` | `http://localhost:8080` | The address people and agents open, with `https://` behind your TLS proxy |
-| `RUNTIME_LEARNING_DAYS` | `7` | Days after a host enrols during which every program it runs is learned as known |
+| `RUNTIME_LEARNING_DAYS` | `7` | Days after a host enrols, or a host first runs an image, during which every program is learned as known |
 | `RUNTIME_RETENTION_DAYS` | `30` | Events older than this are deleted; closed detections and reviewed changes after a year |
 | `RUNTIME_SIEM_URL`, `RUNTIME_SIEM_TOKEN` | | Send new detections and file changes to SIEM |
 | `OPENASY_PRODUCTS` | | The install's other OpenAsy products, for the product switcher |
@@ -119,7 +120,8 @@ policies, make enrolment tokens, remove hosts, and manage members and API tokens
   UI. Rules are Falco's files, deployed with Falco.
 - **Change windows** for file changes, and opening an incident from a change directly (SIEM can, from its event).
 - **Tetragon** as a second sensor, and Falco's gRPC output.
-- A Kubernetes manifest for the agent as a DaemonSet ships in runtime-agent; a Helm chart is not built.
+- A Kubernetes manifest or Helm values for running the agent in Falco's DaemonSet pod. runtime-agent's compose file
+  runs both on a host; on Kubernetes the agent belongs in the same pod as Falco, so Falco reaches it on 127.0.0.1.
 
 ## Develop
 

@@ -9,6 +9,7 @@ describe("Falco's alerts", () => {
     expect(e.fields["proc.cmdline"]).toBe("sh -c id; uname -a");
     expect(containerOf(e.fields)).toEqual({
       id: "6f9c7d0a1b2c",
+      repository: "registry.example.com/orders-api",
       name: "orders-api",
       image: "registry.example.com/orders-api:2.14.1",
       namespace: "orders",

@@ -289,7 +289,7 @@
     "title": "Kurulum",
     "description": "Falco her sunucuyu eBPF ile izler; yanındaki runtime-agent Falco'nun gördüklerini Runtime'a gönderir.",
     "falco": "1. Falco",
-    "falcoDetail": "Linux 5.8 veya daha yenisinde, modern eBPF sondasıyla Falco 0.39 veya daha yenisi. Uyarılarını JSON olarak ajana gönderin, sağlık için web sunucusunu açın ve süreç ağacını oluşturan alanları isteyin. Süreç envanteri için runtime-agent'ın kural dosyasını da yükleyin.",
+    "falcoDetail": "Linux 5.8 veya daha yenisinde, modern eBPF sondasıyla Falco 0.45 veya daha yenisi. Uyarılarını JSON olarak ajana gönderin, sağlık için web sunucusunu açın ve süreç ağacını oluşturan alanları isteyin. Süreç envanteri için runtime-agent'ın kural dosyasını da yükleyin.",
     "agent": "2. runtime-agent",
     "agentDetail": "Her sunucuya bir tane ya da Kubernetes'te bir DaemonSet. Sunucular altında bir kayıt anahtarı oluşturun ve ajanı onunla bir kez başlatın; sonrasında kendi gizli anahtarını kullanır.",
     "siem": "3. SIEM (isteğe bağlı)",

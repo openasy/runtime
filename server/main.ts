@@ -58,7 +58,7 @@ const siem =
 if (process.env.RUNTIME_SIEM_URL && !siem) log("warn", "RUNTIME_SIEM_URL is set without RUNTIME_SIEM_TOKEN: nothing is sent to SIEM");
 const runtime = createRuntime(db, { clock, retentionDays, onDetection: siem && ((d, e) => siem.add(siem.detection(d, e))) });
 const agents = createAgents(db, { version, learningDays, clock });
-const inventory = createInventory(db, runtime, { clock });
+const inventory = createInventory(db, runtime, { clock, learningDays });
 const integrity = createIntegrity(db, runtime, { clock, onChange: siem && ((c) => siem.add(siem.fileChange(c))) });
 
 const server = createServer(

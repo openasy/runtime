@@ -289,7 +289,7 @@
     "title": "Setup",
     "description": "Falco watches each host with eBPF; runtime-agent next to it sends what Falco sees to Runtime.",
     "falco": "1. Falco",
-    "falcoDetail": "Falco 0.39 or newer, with its modern eBPF probe, on Linux 5.8 or newer. Send its alerts as JSON to the agent, turn on its web server for health, and ask for the fields that make a process tree. Load runtime-agent's rules file too, for the process inventory.",
+    "falcoDetail": "Falco 0.45 or newer, with its modern eBPF probe, on Linux 5.8 or newer. Send its alerts as JSON to the agent, turn on its web server for health, and ask for the fields that make a process tree. Load runtime-agent's rules file too, for the process inventory.",
     "agent": "2. runtime-agent",
     "agentDetail": "One per host, or a DaemonSet in Kubernetes. Make an enrolment token under Hosts and start the agent with it once; afterwards it uses its own secret.",
     "siem": "3. SIEM (optional)",

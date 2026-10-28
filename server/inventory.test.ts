@@ -42,7 +42,7 @@ describe("the process inventory", () => {
     expect(list.find((p: { exe: string }) => p.exe === "/usr/bin/python3")).toMatchObject({
       baseline: "known",
       count: 42,
-      image: "registry.example.com/reports:1.4.0",
+      image: "registry.example.com/reports",
       container: "reports-cron",
       parent: "sh",
       user: "app",
@@ -79,6 +79,19 @@ describe("the process inventory", () => {
     expect((await app.get("/api/v1/policies")).policies.find((p: { rule: string }) => p.rule === "New process in container")).toMatchObject({
       source: "runtime",
     });
+  });
+
+  it("learns a new image, and a new version of a known one, as it learns a host", async () => {
+    const agent = await app.enrol("worker-prod-12");
+    app.later(8 * DAY);
+    const now = new Date(app.later(0)).toISOString();
+    const at = (s: ReturnType<typeof start>) => ({ ...s, firstAt: now, lastAt: now });
+    await agent.events([], [at(start("/usr/bin/redis-server", "containerd-shim", { "container.image.repository": "redis", "container.image.tag": "7" }))]);
+    // The next version is the same workload: the same row, still known.
+    await agent.events([], [at(start("/usr/bin/redis-server", "containerd-shim", { "container.image.repository": "redis", "container.image.tag": "8" }))]);
+    const list = (await app.get("/api/v1/processes?host=worker-prod-12")).processes;
+    expect(list.map((p: { image: string; baseline: string; count: number }) => [p.image, p.baseline, p.count])).toEqual([["redis", "known", 2]]);
+    expect((await app.get("/api/v1/detections?host=worker-prod-12")).detections).toEqual([]);
   });
 
   it("accepts a new program as known, and only that way", async () => {

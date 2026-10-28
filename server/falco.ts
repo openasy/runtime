@@ -99,6 +99,7 @@ export function containerOf(f: Fields) {
   const tag = str(f, "container.image.tag");
   return {
     id,
+    repository: repo,
     name: str(f, "container.name") ?? str(f, "k8s.pod.name") ?? id.slice(0, 12),
     image: repo ? (tag ? `${repo}:${tag}` : repo) : str(f, "container.image"),
     namespace: str(f, "k8s.ns.name"),

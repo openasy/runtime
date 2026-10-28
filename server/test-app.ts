@@ -64,7 +64,7 @@ export async function startApp(opts: Partial<AppOptions> & { version: string; si
   const siem = siemUrl ? createSiemLink(db, { url: siemUrl, token: "siem-token", publicUrl: "https://runtime.example.com", clock }) : undefined;
   const runtime = createRuntime(db, { clock, retentionDays: 30, onDetection: siem && ((d, e) => siem.add(siem.detection(d, e))) });
   const agents = createAgents(db, { version: opts.version, learningDays, clock });
-  const inventory = createInventory(db, runtime, { clock });
+  const inventory = createInventory(db, runtime, { clock, learningDays });
   const integrity = createIntegrity(db, runtime, { clock, onChange: siem && ((c) => siem.add(siem.fileChange(c))) });
   // The origin is known once the port is, so the handler is set after listening.
   let handler: RequestListener = (_req, res) => res.writeHead(503).end();

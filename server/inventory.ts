@@ -1,7 +1,7 @@
 // What ran where, and what started it (ADR 0066). runtime-agent's Falco rule "OpenAsy process started" sees every
 // program start; the agent counts them by program, parent and user instead of sending each one, and sends the counts
-// with the latest start's fields. A host learns for its first days (RUNTIME_LEARNING_DAYS): everything it runs then
-// is known. Afterwards a program never seen there is new, and a known program with a parent or user never seen with
+// with the latest start's fields. A host learns for its first days (RUNTIME_LEARNING_DAYS), and so does each container
+// image, by repository, from the first time the host runs it: everything run then is known. Afterwards a program never seen there is new, and a known program with a parent or user never seen with
 // it is drift. A new program in a container raises the detection "New process in container": containers run the
 // same image every time, so a program the image never ran is worth a look.
 import { randomUUID } from "node:crypto";
@@ -53,7 +53,7 @@ const toProcess = (p: ProcessRow) => ({
   baseline: p.baseline,
 });
 
-export function createInventory(db: DatabaseSync, runtime: Runtime, o: { clock: () => number }) {
+export function createInventory(db: DatabaseSync, runtime: Runtime, o: { clock: () => number; learningDays: number }) {
   /** One counted program start from an agent: { fields, count, firstAt, lastAt }. */
   function parseStart(raw: unknown) {
     if (!isObject(raw)) throw new FalcoError("a process is { fields, count, firstAt, lastAt }.");
@@ -85,7 +85,13 @@ export function createInventory(db: DatabaseSync, runtime: Runtime, o: { clock: 
     if (raw.length > MAX_PROCESSES) throw bad(`At most ${MAX_PROCESSES} processes in one call.`);
     const refused: Array<{ index: number; detail: string }> = [];
     let taken = 0;
-    const learning = o.clock() < Date.parse(h.learning_until);
+    const hostLearning = o.clock() < Date.parse(h.learning_until);
+    // An image learns for itself from the first time this host runs it, so a new service is not a flood of "new".
+    const imageLearning = (image: string) => {
+      if (!image || !o.learningDays) return false;
+      const first = (db.prepare("SELECT MIN(first_seen_at) AS t FROM processes WHERE host_id = ? AND image = ?").get(h.id, image) as { t: string | null }).t;
+      return !first || o.clock() < Date.parse(first) + o.learningDays * 86_400_000;
+    };
     runtime.tx(() =>
       raw.forEach((item, index) => {
         let s: ReturnType<typeof parseStart>;
@@ -99,7 +105,8 @@ export function createInventory(db: DatabaseSync, runtime: Runtime, o: { clock: 
         taken++;
         const p = processOf(s.fields);
         const c = containerOf(s.fields);
-        const key = [h.id, c?.image ?? "", (p.exe ?? p.name)!, p.parent ?? "", p.user ?? ""] as const;
+        // By repository, not tag: a new version of the same image is the same workload.
+        const key = [h.id, c ? (c.repository ?? c.image ?? "") : "", (p.exe ?? p.name)!, p.parent ?? "", p.user ?? ""] as const;
         const existing = db.prepare("SELECT id FROM processes WHERE host_id = ? AND image = ? AND exe = ? AND parent = ? AND user_name = ?").get(...key) as
           { id: string } | undefined;
         if (existing) {
@@ -111,7 +118,7 @@ export function createInventory(db: DatabaseSync, runtime: Runtime, o: { clock: 
           return;
         }
         const program = db.prepare("SELECT 1 FROM processes WHERE host_id = ? AND image = ? AND exe = ?").get(key[0], key[1], key[2]);
-        const baseline: Baseline = learning ? "known" : program ? "drift" : "new";
+        const baseline: Baseline = hostLearning || imageLearning(key[1]) ? "known" : program ? "drift" : "new";
         db.prepare(
           `INSERT INTO processes (id, host_id, image, exe, parent, user_name, cmdline, pid, ppid, container_name, namespace, count, first_seen_at,
              last_seen_at, baseline) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
