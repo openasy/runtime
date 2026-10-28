@@ -1,0 +1,27 @@
+/* The few layouts this product needs that @openasy/ui's prebuilt styles do not include. Colours stay in the library's tokens. */
+
+/* Facts of a detection, a change or a policy: a label, then its value. */
+.runtime-facts {
+  display: grid;
+  grid-template-columns: minmax(6rem, max-content) minmax(0, 1fr);
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+}
+
+.runtime-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A new enrolment token: its name, how many hosts, and the button, side by side from 640px. */
+.runtime-token-form {
+  display: grid;
+  gap: 0.5rem;
+  align-items: end;
+}
+
+@media (min-width: 640px) {
+  .runtime-token-form {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+  }
+}

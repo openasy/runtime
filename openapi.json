@@ -1,0 +1,3098 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "OpenAsy Runtime API",
+    "version": "0.1.0",
+    "summary": "What processes do on your hosts and pods, from Falco: detections with their process tree, the programs that ran, and changes to watched files.",
+    "description": "Every screen of Runtime uses this API, and so can your scripts (ADR 0014). Within `/api/v1` changes are additive only; anything removed is deprecated first. Errors use Problem Details (RFC 9457).\n\nruntime-agent enrols with a one-time or fleet enrolment token at `/api/v1/agent/enroll` and then calls `/api/v1/agent/*` with its own secret, which speaks for its host only. Everything else takes the session of a signed-in person or an API token, and each operation names the role it needs (`x-openasy-role`: viewer, editor, admin; ADR 0003).\n\nSign-in, members and API tokens are under `/api/v1/auth`, provided by [@openasy/auth](https://github.com/openasy/auth#routes).",
+    "license": {
+      "name": "AGPL-3.0-only",
+      "identifier": "AGPL-3.0-only"
+    }
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "This Runtime"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Detections",
+      "description": "Falco rules matching on a host, with the process tree, and the events behind them."
+    },
+    {
+      "name": "Processes",
+      "description": "What ran where, and what started it."
+    },
+    {
+      "name": "File integrity",
+      "description": "Changes to the files that should never change."
+    },
+    {
+      "name": "Policies",
+      "description": "What each Falco rule does: alert or off, and at which severity."
+    },
+    {
+      "name": "Hosts",
+      "description": "Hosts with runtime-agent, and the tokens they enrol with."
+    },
+    {
+      "name": "Agent",
+      "description": "What runtime-agent calls. Runtime never calls it."
+    },
+    {
+      "name": "Product",
+      "description": "Version, health and overview of this Runtime."
+    }
+  ],
+  "paths": {
+    "/api/v1/detections": {
+      "get": {
+        "operationId": "listDetections",
+        "tags": [
+          "Detections"
+        ],
+        "summary": "List detections",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "description": "Newest activity first, at most 1000.",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "`active` (open and investigating), or one status.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "severity",
+            "in": "query",
+            "required": false,
+            "description": "Severities separated by commas.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "host",
+            "in": "query",
+            "required": false,
+            "description": "A host's name.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Text in the rule, host, process or container.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "At most 1000.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detections.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "detections"
+                  ],
+                  "properties": {
+                    "detections": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Detection"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/detections/{id}": {
+      "get": {
+        "operationId": "getDetection",
+        "tags": [
+          "Detections"
+        ],
+        "summary": "Get a detection",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "description": "With its process tree and its newest 20 events.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The detection's id.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The detection.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetectionDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "put": {
+        "operationId": "setDetectionStatus",
+        "tags": [
+          "Detections"
+        ],
+        "summary": "Set a detection's status",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "x-openasy-role": "editor",
+        "description": "A resolved or false-positive detection stops collecting: the next match is a new detection. A false positive needs a reason.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The detection's id.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "open",
+                      "investigating",
+                      "resolved",
+                      "false-positive"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The detection.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetectionDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/events": {
+      "get": {
+        "operationId": "listEvents",
+        "tags": [
+          "Detections"
+        ],
+        "summary": "List events",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "description": "Falco's alerts as the agents sent them, newest first, a page at a time. Pass `next` as `before` for the next page.",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "description": "exec, network, file, kernel or other.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "host",
+            "in": "query",
+            "required": false,
+            "description": "A host's name.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "rule",
+            "in": "query",
+            "required": false,
+            "description": "A rule's name.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "detection",
+            "in": "query",
+            "required": false,
+            "description": "A detection's id.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "result",
+            "in": "query",
+            "required": false,
+            "description": "alerted or kept.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "description": "An RFC 3339 time.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Text in the output, rule, host or container.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "description": "The `next` of the page before.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "At most 500.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of events.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "events",
+                    "next"
+                  ],
+                  "properties": {
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Event"
+                      }
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/processes": {
+      "get": {
+        "operationId": "listProcesses",
+        "tags": [
+          "Processes"
+        ],
+        "summary": "List programs seen",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "description": "One row per program, parent and user on a host or in a container image; at most 2000, last seen first.",
+        "parameters": [
+          {
+            "name": "host",
+            "in": "query",
+            "required": false,
+            "description": "A host's name.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "baseline",
+            "in": "query",
+            "required": false,
+            "description": "known, new, drift, or unusual for new and drift.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Text in the command line or image.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Programs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "processes"
+                  ],
+                  "properties": {
+                    "processes": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Process"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/processes/{id}": {
+      "put": {
+        "operationId": "acceptProcess",
+        "tags": [
+          "Processes"
+        ],
+        "summary": "Accept a program as known",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "x-openasy-role": "editor",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The process row's id.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "baseline"
+                ],
+                "properties": {
+                  "baseline": {
+                    "const": "known"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The program.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Process"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/file-changes": {
+      "get": {
+        "operationId": "listFileChanges",
+        "tags": [
+          "File integrity"
+        ],
+        "summary": "List changes to watched files",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "description": "Newest first, at most 1000.",
+        "parameters": [
+          {
+            "name": "host",
+            "in": "query",
+            "required": false,
+            "description": "A host's name.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "review",
+            "in": "query",
+            "required": false,
+            "description": "unreviewed, approved or suspicious.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "changes"
+                  ],
+                  "properties": {
+                    "changes": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/FileChange"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/file-changes/{id}": {
+      "put": {
+        "operationId": "reviewFileChange",
+        "tags": [
+          "File integrity"
+        ],
+        "summary": "Review a change",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "x-openasy-role": "editor",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The change's id.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "review"
+                ],
+                "properties": {
+                  "review": {
+                    "type": "string",
+                    "enum": [
+                      "unreviewed",
+                      "approved",
+                      "suspicious"
+                    ]
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The change.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileChange"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/policies": {
+      "get": {
+        "operationId": "listPolicies",
+        "tags": [
+          "Policies"
+        ],
+        "summary": "List policies",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "description": "One per Falco rule seen, with its hits in the last 7 days.",
+        "responses": {
+          "200": {
+            "description": "Policies.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "policies"
+                  ],
+                  "properties": {
+                    "policies": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Policy"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/policies/{rule}": {
+      "put": {
+        "operationId": "setPolicy",
+        "tags": [
+          "Policies"
+        ],
+        "summary": "Set a rule's policy",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "x-openasy-role": "admin",
+        "description": "off keeps the rule's events and raises no detection; severity overrides Falco's priority, null goes back to it. Applies to events from now on.",
+        "parameters": [
+          {
+            "name": "rule",
+            "in": "path",
+            "required": true,
+            "description": "The rule's name, URL-encoded.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [],
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "alert",
+                      "off"
+                    ]
+                  },
+                  "severity": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "critical",
+                      "high",
+                      "medium",
+                      "low",
+                      "info",
+                      null
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The policy.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Policy"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/hosts": {
+      "get": {
+        "operationId": "listHosts",
+        "tags": [
+          "Hosts"
+        ],
+        "summary": "List hosts",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "responses": {
+          "200": {
+            "description": "Hosts with runtime-agent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "hosts"
+                  ],
+                  "properties": {
+                    "hosts": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Host"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/hosts/{id}": {
+      "delete": {
+        "operationId": "removeHost",
+        "tags": [
+          "Hosts"
+        ],
+        "summary": "Remove a host",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "x-openasy-role": "admin",
+        "description": "Ends the agent's secret at once and frees the name to enrol again. Detections and events stay under the host's name.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The host's id.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed."
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/enrollment-tokens": {
+      "get": {
+        "operationId": "listEnrollmentTokens",
+        "tags": [
+          "Hosts"
+        ],
+        "summary": "List enrolment tokens",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "x-openasy-role": "admin",
+        "responses": {
+          "200": {
+            "description": "Tokens, without the tokens themselves.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "tokens"
+                  ],
+                  "properties": {
+                    "tokens": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/EnrollmentToken"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createEnrollmentToken",
+        "tags": [
+          "Hosts"
+        ],
+        "summary": "Make an enrolment token",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "x-openasy-role": "admin",
+        "description": "For one host (maxUses 1) or a fleet such as a DaemonSet. Each host enrols once with it and gets a secret of its own.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "maxUses": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10000,
+                    "default": 1
+                  },
+                  "days": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 30,
+                    "default": 7
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The token, shown once.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewEnrollmentToken"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/enrollment-tokens/{id}": {
+      "delete": {
+        "operationId": "deleteEnrollmentToken",
+        "tags": [
+          "Hosts"
+        ],
+        "summary": "Delete an enrolment token",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "x-openasy-role": "admin",
+        "description": "Hosts that enrolled with it keep their own secrets.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The token's id.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted."
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/agent/enroll": {
+      "post": {
+        "operationId": "enrollAgent",
+        "tags": [
+          "Agent"
+        ],
+        "summary": "Enrol an agent",
+        "security": [],
+        "description": "runtime-agent's first call: trades an enrolment token for the host's own secret, which is returned once and kept by Runtime only as a hash.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "token",
+                  "name",
+                  "report"
+                ],
+                "properties": {
+                  "token": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "The host's name."
+                  },
+                  "report": {
+                    "$ref": "#/components/schemas/Report"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The host's secret.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "hostId",
+                    "secret"
+                  ],
+                  "properties": {
+                    "hostId": {
+                      "type": "string"
+                    },
+                    "secret": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/agent/events": {
+      "post": {
+        "operationId": "sendAgentEvents",
+        "tags": [
+          "Agent"
+        ],
+        "summary": "Send events",
+        "security": [
+          {
+            "agentSecret": []
+          }
+        ],
+        "description": "Falco's alerts, as its json_output writes them, and counted program starts, optionally gzipped, up to 16 MiB. An event that is not what Falco writes is left out and named in `refused`; the others are kept.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "report"
+                ],
+                "properties": {
+                  "report": {
+                    "$ref": "#/components/schemas/Report"
+                  },
+                  "events": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    },
+                    "maxItems": 5000,
+                    "description": "Falco alerts: time, rule, priority, source, tags, output, output_fields."
+                  },
+                  "processes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "fields",
+                        "lastAt"
+                      ],
+                      "properties": {
+                        "fields": {
+                          "type": "object"
+                        },
+                        "count": {
+                          "type": "integer"
+                        },
+                        "firstAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "lastAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    },
+                    "maxItems": 5000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What was taken.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "events",
+                    "processes"
+                  ],
+                  "properties": {
+                    "events": {
+                      "$ref": "#/components/schemas/Taken"
+                    },
+                    "processes": {
+                      "$ref": "#/components/schemas/Taken"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/agent/files": {
+      "post": {
+        "operationId": "sendAgentFiles",
+        "tags": [
+          "Agent"
+        ],
+        "summary": "Send a read of the watched files",
+        "security": [
+          {
+            "agentSecret": []
+          }
+        ],
+        "description": "Every watched file as the agent read it. `complete` is false when the agent stopped at its limit; files missing from such a read are not taken as deleted.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "report",
+                  "paths",
+                  "files",
+                  "complete"
+                ],
+                "properties": {
+                  "report": {
+                    "$ref": "#/components/schemas/Report"
+                  },
+                  "paths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "path",
+                        "kind",
+                        "sha256",
+                        "size",
+                        "mode",
+                        "uid",
+                        "gid"
+                      ],
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "file",
+                            "link"
+                          ]
+                        },
+                        "sha256": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "size": {
+                          "type": "integer"
+                        },
+                        "mode": {
+                          "type": "string"
+                        },
+                        "uid": {
+                          "type": "integer"
+                        },
+                        "gid": {
+                          "type": "integer"
+                        },
+                        "target": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    },
+                    "maxItems": 50000
+                  },
+                  "complete": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What was found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "files",
+                    "changes",
+                    "baseline"
+                  ],
+                  "properties": {
+                    "files": {
+                      "type": "integer"
+                    },
+                    "changes": {
+                      "type": "integer"
+                    },
+                    "baseline": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/summary": {
+      "get": {
+        "operationId": "getSummary",
+        "tags": [
+          "Product"
+        ],
+        "summary": "Summary",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "description": "What the Detections page shows at the top.",
+        "responses": {
+          "200": {
+            "description": "The summary.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Summary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/v1/version": {
+      "get": {
+        "operationId": "getVersion",
+        "tags": [
+          "Product"
+        ],
+        "summary": "Product and version",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "This product and its version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Version"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/products": {
+      "get": {
+        "operationId": "listProducts",
+        "tags": [
+          "Product"
+        ],
+        "summary": "The install's other products",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "x-openasy-role": "viewer",
+        "description": "From OPENASY_PRODUCTS, for the product switcher.",
+        "responses": {
+          "200": {
+            "description": "Products.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Products"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/healthz": {
+      "get": {
+        "operationId": "liveness",
+        "tags": [
+          "Product"
+        ],
+        "summary": "Liveness",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The process is running.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "operationId": "readiness",
+        "tags": [
+          "Product"
+        ],
+        "summary": "Readiness",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Ready to take events.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The database does not answer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "operationId": "metrics",
+        "tags": [
+          "Product"
+        ],
+        "summary": "Prometheus metrics",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Metrics in the Prometheus text format.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "session": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-openasy-session",
+        "description": "The browser session after signing in (`openasy-session` when Runtime runs on plain http://localhost). Requests that change something must come from Runtime's origin."
+      },
+      "apiToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "An API token created under Settings → API tokens (`oa_runtime_...`): one role, always an expiry (ADR 0003)."
+      },
+      "adminToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Only when Runtime is started by its tests or a local script: one shared token with the admin role. A production install does not have it."
+      },
+      "agentSecret": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "The secret runtime-agent got when it enrolled (`oia_...`). It speaks for its own host only."
+      }
+    },
+    "responses": {
+      "Problem": {
+        "description": "An error, as RFC 9457 Problem Details.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Problem": {
+        "type": "object",
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "invalid-token",
+              "invalid-json",
+              "invalid-body",
+              "not-found",
+              "conflict",
+              "payload-too-large",
+              "internal-error",
+              "unauthenticated",
+              "invalid-credentials",
+              "mfa-required",
+              "mfa-setup-required",
+              "forbidden",
+              "cross-site",
+              "rate-limited"
+            ],
+            "description": "Stable; match on this."
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      },
+      "Status": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "Version": {
+        "type": "object",
+        "required": [
+          "product",
+          "version"
+        ],
+        "properties": {
+          "product": {
+            "const": "runtime"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "Products": {
+        "type": "object",
+        "required": [
+          "products"
+        ],
+        "properties": {
+          "products": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "url"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Severity": {
+        "type": "string",
+        "enum": [
+          "critical",
+          "high",
+          "medium",
+          "low",
+          "info"
+        ]
+      },
+      "ProcNode": {
+        "type": "object",
+        "required": [
+          "pid",
+          "cmd",
+          "user",
+          "flagged",
+          "children"
+        ],
+        "properties": {
+          "pid": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Unknown for an ancestor Falco did not name."
+          },
+          "cmd": {
+            "type": "string",
+            "description": "The command line, or only the program's name for older ancestors."
+          },
+          "user": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "flagged": {
+            "type": "boolean",
+            "description": "A process a rule matched."
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProcNode"
+            }
+          }
+        }
+      },
+      "Container": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "required": [
+          "id",
+          "name",
+          "image",
+          "namespace",
+          "pod"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "image": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "namespace": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Kubernetes namespace."
+          },
+          "pod": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Detection": {
+        "type": "object",
+        "required": [
+          "id",
+          "rule",
+          "severity",
+          "status",
+          "host",
+          "container",
+          "process",
+          "user",
+          "output",
+          "tags",
+          "attack",
+          "count",
+          "firstAt",
+          "lastAt",
+          "reason",
+          "updatedBy",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "rule": {
+            "type": "string",
+            "description": "The Falco rule, or Runtime's own New process in container."
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low",
+              "info"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "investigating",
+              "resolved",
+              "false-positive"
+            ]
+          },
+          "host": {
+            "type": "object",
+            "required": [
+              "id",
+              "name"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "container": {
+            "$ref": "#/components/schemas/Container"
+          },
+          "process": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The command line of the process the rule matched first."
+          },
+          "user": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "output": {
+            "type": "string",
+            "description": "Falco's output line of the latest event."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "attack": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "MITRE ATT&CK techniques among the rule's tags."
+          },
+          "count": {
+            "type": "integer",
+            "description": "Events in the detection."
+          },
+          "firstAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "DetectionDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Detection"
+          },
+          {
+            "type": "object",
+            "required": [
+              "tree",
+              "events"
+            ],
+            "properties": {
+              "tree": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ProcNode"
+                },
+                "description": "The processes of its events, joined by pid."
+              },
+              "events": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Event"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "Event": {
+        "type": "object",
+        "required": [
+          "id",
+          "time",
+          "receivedAt",
+          "host",
+          "kind",
+          "rule",
+          "priority",
+          "severity",
+          "source",
+          "tags",
+          "output",
+          "container",
+          "process",
+          "pid",
+          "user",
+          "file",
+          "result",
+          "detectionId",
+          "fields"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Opaque; newer events have larger ids."
+          },
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "host": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "exec",
+              "network",
+              "file",
+              "kernel",
+              "other"
+            ]
+          },
+          "rule": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "emergency",
+              "alert",
+              "critical",
+              "error",
+              "warning",
+              "notice",
+              "informational",
+              "debug"
+            ]
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low",
+              "info"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "description": "Falco's event source, such as syscall, or runtime for Runtime's own rule."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "output": {
+            "type": "string"
+          },
+          "container": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "required": [
+              "id",
+              "name"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "process": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pid": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "user": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "file": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The file the event is about, for opens, renames and unlinks."
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "alerted",
+              "kept"
+            ],
+            "description": "alerted raised or joined a detection; kept matched a rule whose policy is off."
+          },
+          "detectionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fields": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "number",
+                "boolean",
+                "null"
+              ]
+            },
+            "description": "Falco's output_fields, as sent."
+          }
+        }
+      },
+      "Process": {
+        "type": "object",
+        "required": [
+          "id",
+          "host",
+          "image",
+          "container",
+          "namespace",
+          "exe",
+          "parent",
+          "user",
+          "cmdline",
+          "pid",
+          "ppid",
+          "count",
+          "firstSeenAt",
+          "lastSeenAt",
+          "baseline"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "host": {
+            "type": "object",
+            "required": [
+              "id",
+              "name"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "image": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The container image; null for a program on the host itself."
+          },
+          "container": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "namespace": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "exe": {
+            "type": "string"
+          },
+          "parent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "user": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cmdline": {
+            "type": "string",
+            "description": "The latest start's command line."
+          },
+          "pid": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "ppid": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "count": {
+            "type": "integer",
+            "description": "Starts seen."
+          },
+          "firstSeenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "baseline": {
+            "type": "string",
+            "enum": [
+              "known",
+              "new",
+              "drift"
+            ],
+            "description": "known: learned or accepted. new: a program never seen on this host or image. drift: a known program with a new parent or user."
+          }
+        }
+      },
+      "FileState": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "required": [
+          "kind",
+          "sha256",
+          "size",
+          "mode",
+          "uid",
+          "gid",
+          "target"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "file",
+              "link"
+            ]
+          },
+          "sha256": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Null for a file larger than the agent hashes."
+          },
+          "size": {
+            "type": "integer"
+          },
+          "mode": {
+            "type": "string",
+            "description": "Octal, such as 0644."
+          },
+          "uid": {
+            "type": "integer"
+          },
+          "gid": {
+            "type": "integer"
+          },
+          "target": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A link's target."
+          }
+        }
+      },
+      "FileChange": {
+        "type": "object",
+        "required": [
+          "id",
+          "host",
+          "path",
+          "change",
+          "before",
+          "after",
+          "at",
+          "by",
+          "byEventId",
+          "review",
+          "note",
+          "reviewedBy",
+          "reviewedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "host": {
+            "type": "object",
+            "required": [
+              "id",
+              "name"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "path": {
+            "type": "string"
+          },
+          "change": {
+            "type": "string",
+            "enum": [
+              "created",
+              "modified",
+              "deleted",
+              "permissions"
+            ]
+          },
+          "before": {
+            "$ref": "#/components/schemas/FileState"
+          },
+          "after": {
+            "$ref": "#/components/schemas/FileState"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the agent's read found it."
+          },
+          "by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The process of the newest Falco event about this file since the read before, and its user."
+          },
+          "byEventId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "review": {
+            "type": "string",
+            "enum": [
+              "unreviewed",
+              "approved",
+              "suspicious"
+            ]
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "Policy": {
+        "type": "object",
+        "required": [
+          "rule",
+          "source",
+          "priority",
+          "severity",
+          "severityOverride",
+          "mode",
+          "tags",
+          "attack",
+          "hits7d",
+          "firstSeenAt",
+          "lastSeenAt",
+          "updatedBy",
+          "updatedAt"
+        ],
+        "properties": {
+          "rule": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low",
+              "info"
+            ],
+            "description": "The severity its detections get: the override, or Falco's priority."
+          },
+          "severityOverride": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low",
+              "info",
+              null
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "alert",
+              "off"
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "attack": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "hits7d": {
+            "type": "integer"
+          },
+          "firstSeenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "Host": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "status",
+          "version",
+          "os",
+          "kernel",
+          "arch",
+          "falco",
+          "eventsIn",
+          "dropped",
+          "lastEventAt",
+          "lastSeenAt",
+          "enrolledAt",
+          "learningUntil",
+          "fim",
+          "eventsPerHour"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "healthy",
+              "silent",
+              "sensor-down",
+              "outdated"
+            ],
+            "description": "silent: no word for two minutes. sensor-down: the agent cannot reach Falco. outdated: the agent's version is not Runtime's."
+          },
+          "version": {
+            "type": "string"
+          },
+          "os": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kernel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "arch": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "falco": {
+            "type": "object",
+            "required": [
+              "status",
+              "version",
+              "detail"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "down",
+                  "unknown"
+                ]
+              },
+              "version": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "detail": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "eventsIn": {
+            "type": "integer"
+          },
+          "dropped": {
+            "type": "integer",
+            "description": "Events the agent could not hold while Runtime was out of reach."
+          },
+          "lastEventAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "enrolledAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "learningUntil": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Until then every program the host runs is learned as known."
+          },
+          "fim": {
+            "type": "object",
+            "required": [
+              "paths",
+              "scannedAt",
+              "files"
+            ],
+            "properties": {
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "scannedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "files": {
+                "type": "integer"
+              }
+            }
+          },
+          "eventsPerHour": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "minItems": 24,
+            "maxItems": 24
+          }
+        }
+      },
+      "EnrollmentToken": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "maxUses",
+          "uses",
+          "expiresAt",
+          "state",
+          "createdBy",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "maxUses": {
+            "type": "integer"
+          },
+          "uses": {
+            "type": "integer"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "used",
+              "expired"
+            ]
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "NewEnrollmentToken": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/EnrollmentToken"
+          },
+          {
+            "type": "object",
+            "required": [
+              "token"
+            ],
+            "properties": {
+              "token": {
+                "type": "string",
+                "description": "Shown this once. Start runtime-agent with it as RUNTIME_ENROLL_TOKEN."
+              }
+            }
+          }
+        ]
+      },
+      "Summary": {
+        "type": "object",
+        "required": [
+          "detections",
+          "events",
+          "files",
+          "processes",
+          "policies",
+          "hosts",
+          "siem"
+        ],
+        "properties": {
+          "detections": {
+            "type": "object",
+            "required": [
+              "active",
+              "bySeverity",
+              "openedLastDay",
+              "openedDayBefore"
+            ],
+            "properties": {
+              "active": {
+                "type": "integer"
+              },
+              "bySeverity": {
+                "type": "object",
+                "required": [
+                  "critical",
+                  "high",
+                  "medium",
+                  "low",
+                  "info"
+                ],
+                "properties": {
+                  "critical": {
+                    "type": "integer"
+                  },
+                  "high": {
+                    "type": "integer"
+                  },
+                  "medium": {
+                    "type": "integer"
+                  },
+                  "low": {
+                    "type": "integer"
+                  },
+                  "info": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "openedLastDay": {
+                "type": "integer"
+              },
+              "openedDayBefore": {
+                "type": "integer"
+              }
+            }
+          },
+          "events": {
+            "type": "object",
+            "required": [
+              "lastDay",
+              "alertedLastDay",
+              "perHour"
+            ],
+            "properties": {
+              "lastDay": {
+                "type": "integer"
+              },
+              "alertedLastDay": {
+                "type": "integer"
+              },
+              "perHour": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "hour",
+                    "critical",
+                    "high",
+                    "medium",
+                    "low",
+                    "info"
+                  ],
+                  "properties": {
+                    "hour": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "critical": {
+                      "type": "integer"
+                    },
+                    "high": {
+                      "type": "integer"
+                    },
+                    "medium": {
+                      "type": "integer"
+                    },
+                    "low": {
+                      "type": "integer"
+                    },
+                    "info": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "minItems": 24,
+                "maxItems": 24
+              }
+            }
+          },
+          "files": {
+            "type": "object",
+            "required": [
+              "changesLastDay",
+              "unreviewed"
+            ],
+            "properties": {
+              "changesLastDay": {
+                "type": "integer"
+              },
+              "unreviewed": {
+                "type": "integer"
+              }
+            }
+          },
+          "processes": {
+            "type": "object",
+            "required": [
+              "new"
+            ],
+            "properties": {
+              "new": {
+                "type": "integer",
+                "description": "Programs new or drifted, not yet accepted."
+              }
+            }
+          },
+          "policies": {
+            "type": "object",
+            "required": [
+              "total",
+              "off"
+            ],
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "off": {
+                "type": "integer"
+              }
+            }
+          },
+          "hosts": {
+            "type": "object",
+            "required": [
+              "total",
+              "healthy",
+              "silent",
+              "sensorDown",
+              "outdated"
+            ],
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "healthy": {
+                "type": "integer"
+              },
+              "silent": {
+                "type": "integer"
+              },
+              "sensorDown": {
+                "type": "integer"
+              },
+              "outdated": {
+                "type": "integer"
+              }
+            }
+          },
+          "siem": {
+            "type": "object",
+            "required": [
+              "configured"
+            ],
+            "properties": {
+              "configured": {
+                "type": "boolean"
+              },
+              "url": {
+                "type": "string"
+              },
+              "pending": {
+                "type": "integer"
+              },
+              "lastError": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "lastSentAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            }
+          }
+        }
+      },
+      "Report": {
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "os": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kernel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "arch": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "falco": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "down",
+                  "unknown"
+                ]
+              },
+              "version": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "detail": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "fimPaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "dropped": {
+            "type": "integer"
+          }
+        },
+        "description": "The agent's report of itself, with every call."
+      },
+      "Refused": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "index",
+            "detail"
+          ],
+          "properties": {
+            "index": {
+              "type": "integer"
+            },
+            "detail": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Taken": {
+        "type": "object",
+        "required": [
+          "taken",
+          "refused"
+        ],
+        "properties": {
+          "taken": {
+            "type": "integer"
+          },
+          "refused": {
+            "$ref": "#/components/schemas/Refused"
+          }
+        }
+      }
+    }
+  }
+}

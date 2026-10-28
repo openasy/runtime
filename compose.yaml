@@ -1,0 +1,41 @@
+# Runtime. Falco watches each host with eBPF; runtime-agent next to it sends what Falco sees, and Runtime keeps it as
+# detections with their process tree, the programs that ran and changes to watched files (ADR 0066).
+#
+#   openssl rand -hex 32 > openasy-kek   # runtime's key: sign-in secrets (ADR 0021). Keep it with your backups
+#   docker compose up -d
+#   docker compose logs runtime | grep 'no owner yet'   # the one-time link that creates the owner account
+#
+# Then make an enrolment token under Hosts and start runtime-agent next to Falco on each host (see its README).
+services:
+  runtime:
+    image: ghcr.io/openasy/runtime:0.1.0
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: [/tmp]
+    ports:
+      - "127.0.0.1:8080:8080" # UI and API; put a TLS proxy in front so agents on other hosts reach it over https
+    volumes:
+      - runtime-data:/data # SQLite database: hosts, events, detections, programs and file changes
+    secrets:
+      - openasy-kek # mounted at /run/secrets/openasy-kek
+    environment:
+      # The address people and agents open Runtime at; with a TLS proxy in front, its https:// URL.
+      RUNTIME_PUBLIC_URL: ${RUNTIME_PUBLIC_URL:-http://localhost:8080}
+      # Days after a host enrols during which every program it runs is learned as normal.
+      RUNTIME_LEARNING_DAYS: ${RUNTIME_LEARNING_DAYS:-7}
+      # Send new detections and file changes to OpenAsy SIEM as events (ADR 0040):
+      # RUNTIME_SIEM_URL: http://siem:8080
+      # RUNTIME_SIEM_TOKEN: ${SIEM_INGEST_TOKEN}   # the same value as SIEM_INGEST_TOKEN in siem's file
+      # Sign in with your identity provider (OIDC), see the README:
+      # OPENASY_OIDC_ISSUER: https://login.example.com
+      # OPENASY_OIDC_CLIENT_ID: runtime
+      # OPENASY_OIDC_CLIENT_SECRET: ${OPENASY_OIDC_CLIENT_SECRET}
+
+volumes:
+  runtime-data:
+
+secrets:
+  openasy-kek:
+    file: ./openasy-kek

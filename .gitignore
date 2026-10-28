@@ -1,0 +1,8 @@
+node_modules
+dist
+data
+coverage
+*.log
+.DS_Store
+openasy-kek
+openasy-agent-kek
