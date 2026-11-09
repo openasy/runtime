@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "OpenAsy Runtime API",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "summary": "What processes do on your hosts and pods, from Falco: detections with their process tree, the programs that ran, and changes to watched files.",
     "description": "Every screen of Runtime uses this API, and so can your scripts (ADR 0014). Within `/api/v1` changes are additive only; anything removed is deprecated first. Errors use Problem Details (RFC 9457).\n\nruntime-agent enrols with a one-time or fleet enrolment token at `/api/v1/agent/enroll` and then calls `/api/v1/agent/*` with its own secret, which speaks for its host only. Everything else takes the session of a signed-in person or an API token, and each operation names the role it needs (`x-openasy-role`: viewer, editor, admin; ADR 0003).\n\nSign-in, members and API tokens are under `/api/v1/auth`, provided by [@openasy/auth](https://github.com/openasy/auth#routes).",
     "license": {

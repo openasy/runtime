@@ -8,7 +8,7 @@
 # Then make an enrolment token under Hosts and start runtime-agent next to Falco on each host (see its README).
 services:
   runtime:
-    image: ghcr.io/openasy/runtime:0.1.0
+    image: ghcr.io/openasy/runtime:0.1.1
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]

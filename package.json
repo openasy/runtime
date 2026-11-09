@@ -1,6 +1,6 @@
 {
   "name": "@openasy/runtime",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "OpenAsy Runtime: what processes do on your hosts and pods, from Falco's eBPF sensor, as detections with their process tree, a process inventory and file integrity.",
   "license": "AGPL-3.0-only",
