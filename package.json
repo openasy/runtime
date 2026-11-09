@@ -22,7 +22,7 @@
   "prettier": "@openasy/code-style/prettier",
   "devDependencies": {
     "@openasy/code-style": "https://github.com/openasy/code-style/releases/download/v0.1.2/openasy-code-style-0.1.2.tgz",
-    "@openasy/ui": "https://github.com/openasy/ui/releases/download/v0.13.0/openasy-ui-0.13.0.tgz",
+    "@openasy/ui": "https://github.com/openasy/ui/releases/download/v0.17.0/openasy-ui-0.17.0.tgz",
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

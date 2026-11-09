@@ -62,7 +62,7 @@ import {
   type Severity,
   type Summary,
 } from "./api.ts";
-import { useT } from "./i18n.ts";
+import { useT, viewerLocale, setViewerLocale } from "./i18n.ts";
 import { search } from "./search.ts";
 
 const PAGES = ["detections", "events", "processes", "file-integrity", "policies", "hosts", "setup", "account", "members", "signin", "tokens", "about"] as const;
@@ -132,9 +132,9 @@ function useAction(after: () => void) {
   return [run, error] as const;
 }
 
-const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-const clock = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-const hour = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+const when = (iso: string) => new Date(iso).toLocaleString(viewerLocale(), { dateStyle: "medium", timeStyle: "short" });
+const clock = (iso: string) => new Date(iso).toLocaleTimeString(viewerLocale(), { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const hour = (iso: string) => new Date(iso).toLocaleTimeString(viewerLocale(), { hour: "2-digit", minute: "2-digit" });
 const short = (sha: string | null) => (sha ? `${sha.slice(0, 8)}…${sha.slice(-4)}` : "–");
 const SEVERITY_ORDER: Severity[] = ["info", "low", "medium", "high", "critical"];
 const put = (body: unknown): RequestInit => ({ method: "PUT", body: JSON.stringify(body) });
@@ -180,7 +180,7 @@ function ProcessTree({ node }: { node: ProcNode }) {
         {node.user && <span className="shrink-0 font-mono text-2xs text-fg-muted">{node.user}</span>}
       </span>
       {node.children.length > 0 && (
-        <ul className="ml-3 flex flex-col border-l border-line pl-2">
+        <ul className="ms-3 flex flex-col border-s border-line ps-2">
           {node.children.map((c, i) => (
             <ProcessTree key={`${c.pid}-${i}`} node={c} />
           ))}
@@ -390,7 +390,7 @@ function DetectionsPage({ call, summary, selected, reload }: { call: Call; summa
         />
         <KpiCard
           label={t("detectionsPage.events24h")}
-          value={s.events.lastDay.toLocaleString()}
+          value={s.events.lastDay.toLocaleString(viewerLocale())}
           unit={t("detectionsPage.alerted", { count: s.events.alertedLastDay })}
           href="/events"
         />
@@ -507,7 +507,7 @@ function EventsPage({ call }: { call: Call }) {
       mono: true,
       width: "150px",
       sortValue: (e) => e.time,
-      cell: (e) => `${new Date(e.time).toLocaleDateString()} ${clock(e.time)}`,
+      cell: (e) => `${new Date(e.time).toLocaleDateString(viewerLocale())} ${clock(e.time)}`,
     },
     { id: "kind", header: t("eventsPage.kind"), width: "90px", cell: (e) => <Badge tone={KIND_TONE[e.kind]}>{t(`kinds.${e.kind}`)}</Badge> },
     { id: "host", header: t("eventsPage.host"), cell: (e) => <EntityChip kind="host" value={e.host} hideKind /> },
@@ -672,7 +672,14 @@ function ProcessesPage({ call, hosts }: { call: Call; hosts: Host[] }) {
       cell: (p) =>
         p.container ? <EntityChip kind="container" value={p.container} hideKind /> : <span className="text-fg-subtle">{t("processesPage.onHost")}</span>,
     },
-    { id: "count", header: t("processesPage.starts"), align: "right", mono: true, sortValue: (p) => p.count, cell: (p) => p.count.toLocaleString() },
+    {
+      id: "count",
+      header: t("processesPage.starts"),
+      align: "right",
+      mono: true,
+      sortValue: (p) => p.count,
+      cell: (p) => p.count.toLocaleString(viewerLocale()),
+    },
     {
       id: "seen",
       header: t("processesPage.lastSeen"),
@@ -761,7 +768,7 @@ function StateText({ s }: { s: FileState | null }) {
   return (
     <span className="font-mono text-xs break-all">
       {s.kind === "link" ? `→ ${s.target ?? "?"}` : s.sha256 ? `sha256:${short(s.sha256)}` : t("filesPage.tooLarge")} · {s.mode} {s.uid}:{s.gid} ·{" "}
-      {s.size.toLocaleString()} B
+      {s.size.toLocaleString(viewerLocale())} B
     </span>
   );
 }
@@ -913,7 +920,14 @@ function PoliciesPage({ call, reload }: { call: Call; reload: () => void }) {
     },
     { id: "sev", header: t("policiesPage.severity"), sortValue: (p) => SEVERITY_META[p.severity].rank, cell: (p) => <SeverityBadge severity={p.severity} /> },
     { id: "attack", header: "ATT&CK", cell: (p) => <span className="font-mono text-xs">{p.attack.join(", ") || "–"}</span> },
-    { id: "hits", header: t("policiesPage.hits"), align: "right", mono: true, sortValue: (p) => p.hits7d, cell: (p) => p.hits7d.toLocaleString() },
+    {
+      id: "hits",
+      header: t("policiesPage.hits"),
+      align: "right",
+      mono: true,
+      sortValue: (p) => p.hits7d,
+      cell: (p) => p.hits7d.toLocaleString(viewerLocale()),
+    },
     {
       id: "mode",
       header: t("policiesPage.mode"),
@@ -984,7 +998,7 @@ function PoliciesPage({ call, reload }: { call: Call; reload: () => void }) {
                       {cur.tags.join(", ") || "–"}
                     </span>,
                   ],
-                  [t("policiesPage.hits"), cur.hits7d.toLocaleString()],
+                  [t("policiesPage.hits"), cur.hits7d.toLocaleString(viewerLocale())],
                   [t("policiesPage.lastSeen"), when(cur.lastSeenAt)],
                   cur.updatedBy && [t("policiesPage.updatedBy"), `${cur.updatedBy}, ${when(cur.updatedAt!)}`],
                 ]}
@@ -1123,7 +1137,7 @@ function HostsPage({ call, hosts, reload }: { call: Call; hosts: Host[]; reload:
       sortValue: (h) => h.status,
       cell: (h) => <StatusBadge tone={HOST_TONE[h.status]}>{t(`hostStatuses.${h.status}`)}</StatusBadge>,
     },
-    { id: "fim", header: t("hostsPage.fim"), align: "right", mono: true, cell: (h) => h.fim.files.toLocaleString() },
+    { id: "fim", header: t("hostsPage.fim"), align: "right", mono: true, cell: (h) => h.fim.files.toLocaleString(viewerLocale()) },
     {
       id: "eps",
       header: t("hostsPage.eventsPerHour"),
@@ -1404,6 +1418,7 @@ export function App() {
   const installBrand = useInstallBrand();
   const [theme] = useThemePreference();
   const [locale] = useLocalePreference();
+  setViewerLocale(locale);
   return (
     // The install's brand from config/brand.env (ADR 0053); OpenAsy's own look where it sets none.
     <BrandProvider theme={theme} locale={locale} brand={{ name: "OpenAsy", organization: undefined, ...installBrand }} className="min-h-screen">

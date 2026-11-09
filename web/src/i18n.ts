@@ -7,3 +7,10 @@ import tr from "./messages/tr.json";
 
 export const useT = defineMessages("runtime", { en, tr, de });
 export type T = ReturnType<typeof useT>;
+
+let viewer = "en";
+/** The language picked in the top bar, for dates and numbers written outside React (ADR 0006). App sets it while rendering. */
+export const viewerLocale = (): string => viewer;
+export function setViewerLocale(locale: string): void {
+  viewer = locale;
+}
